@@ -1,46 +1,42 @@
 import "./style.css";
 import WaveSurfer from "wavesurfer.js";
-import MarkersPlugin from "wavesurfer.js/src/plugin/markers";
 import RegionsPlugin from "wavesurfer.js/src/plugin/regions";
-import { draw  } from 'vexchords';
+import { draw } from "vexchords";
 import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
 const dragArea = document.querySelector(".drag-area");
 const left = document.querySelector(".left");
 const dragAreaGenerate = document.querySelector(".drag-area-generate");
 const dragAreaHeader = document.querySelector(".drag-area-header");
 const playAudio = document.querySelector(".play-audio");
+const initChordButton = document.querySelector(".init-chord");
 const ffmpeg = createFFmpeg({ log: false });
+let chordConfig = {
+  chord: [
+    [2, 3],
+    [3, 3],
+    [4, 3],
+    [6, "x"],
+  ],
+  position: 5
+};
+let chordOptions = {
+  width: 200,
+  height: 240,
+  defaultColor: "black",
+};
 // 创建音频波形图
 const wavesurfer = WaveSurfer.create({
   container: ".right-down",
-  waveColor: '#A8DBA8',
-  progressColor: '#3B8686',
-  plugins:[
-    MarkersPlugin.create({
-      container: ".timeline-mark",
-    }),
+  waveColor: "#A8DBA8",
+  progressColor: "#3B8686",
+  plugins: [
     RegionsPlugin.create({
       regionsMinLength: 2,
-      regions: [
-          {
-              start: 1,
-              end: 3,
-              loop: false,
-              color: 'hsla(400, 100%, 30%, 0.5)'
-          }, {
-              start: 5,
-              end: 7,
-              loop: false,
-              color: 'hsla(200, 50%, 70%, 0.4)',
-              minLength: 1,
-              maxLength: 5,
-          }
-      ],
       dragSelection: {
-          slop: 5
-      }
-  })
-  ]
+        slop: 5,
+      },
+    }),
+  ],
 });
 
 let file;
@@ -50,6 +46,9 @@ let fileurl;
 let audiourl;
 let isPlaying = false;
 const vaildExtension = ["video/mp4"];
+initChordButton.addEventListener("click", () => {
+  updateChords(chordConfig, chordOptions);
+});
 dragArea.addEventListener("dragover", (event) => {
   event.preventDefault();
 });
@@ -67,6 +66,7 @@ dragArea.addEventListener("drop", (event) => {
     fileReader.readAsDataURL(file);
   }
 });
+// 生成视频和canvas对象
 dragAreaGenerate.addEventListener("click", () => {
   if (videoHtml) {
     left.innerHTML = videoHtml;
@@ -88,42 +88,100 @@ const transcode = async () => {
   // wavesurfer.loadBlob(blob);
   // const videoSource = document.querySelector('.video-source')
   // const video = document.querySelector('.video')
-  wavesurfer.loadBlob(blob)
+  wavesurfer.loadBlob(blob);
 };
-playAudio.addEventListener("click", () => {
+playAudio.addEventListener("click", playVideoAudio);
+wavesurfer.on("seek", function (position) {
+  updateVideoTimeIfSeek(position);
+});
+wavesurfer.on("region-click", function (region, e) {
+  e.stopPropagation();
+  // // Play on click, loop on shift click
+  e.shiftKey ? region.playLoop() : region.play();
+  const startTime = region.start;
+  const endTime = region.end;
+  console.log(`开始时间${startTime} 结束时间${endTime}`);
+  // 更新视频的起始位置
+  updateVideoTimeIfClick(startTime);
+  // 播放视频
+  playVideoAudio();
+});
+wavesurfer.on("region-dblclick", (region, e) => {
+  region.remove();
+});
+wavesurfer.on("region-click", editAnnotation);
+wavesurfer.on('region-in', showChord);
+function updateVideoTimeIfSeek(position) {
+  let currentTime = position * wavesurfer.getDuration();
+  const video = document.querySelector(".video");
+  video.currentTime = currentTime;
+}
+function updateVideoTimeIfClick(startTime) {
+  const video = document.querySelector(".video");
+  video.currentTime = startTime;
+}
+function playVideoAudio() {
   isPlaying = !isPlaying;
   if (isPlaying) {
     playAudio.innerHTML = "暂停";
     // 播放音频视频
     wavesurfer.play();
-    document.querySelector('video').play()
+    const video = document.querySelector("video")
+    video.play()
+    // 获取当前播放位置
+    video.addEventListener('timeupdate',()=>{
+      console.log(video.currentTime)
+      
+    })
   } else {
     playAudio.innerHTML = "播放";
     wavesurfer.pause();
-    document.querySelector('video').pause()
+    document.querySelector("video").pause();
   }
-});
-wavesurfer.on('seek', function (position) {
-  let currentTime = position * wavesurfer.getDuration();
-  const video = document.querySelector('.video')
-  video.currentTime = currentTime
-
-});
-// 生成和弦
-draw('.chord-container', {
-  chord: [[1, 2], [2, 1], [3, 2], [4, 0], [5, 'x'], [6, 'x']]
-},
-  { width: 200, height: 240, defaultColor: 'black' }
-);
-wavesurfer.on('region-click', function(region, e) {
-  e.stopPropagation();
-  // // Play on click, loop on shift click
-  // e.shiftKey ? region.playLoop() : region.play();
-  console.log(region,e)
-  const startTime = region.start 
-  const endTime = region.end
-  console.log(`开始时间${startTime} 结束时间${endTime}`)
-});
-wavesurfer.on('region-dblclick',(region, e)=>{
-    region.remove()
-})
+}
+function editAnnotation(region) {
+  let form = document.forms.edit;
+  console.log(form);
+  form.elements.start.value = Math.round(region.start * 10) / 10;
+  form.elements.end.value = Math.round(region.end * 10) / 10;
+  form.elements.note.value = region.data.note || "";
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    region.update({
+      start: form.elements.start.value,
+      end: form.elements.end.value,
+      data: {
+        note: form.elements.note.value,
+      },
+    });
+    
+  };
+}
+function updateChords(chordConfig, chordOptions) {
+  const chordContainer = document.querySelector(".chord-container");
+  chordContainer.innerHTML = "";
+  draw(".chord-container", chordConfig, chordOptions);
+}
+function showChord(region){
+  // 通过提交的note 计算chordconfig 和 chordOptions 3(2,1,4,3,2,0) 一弦2品、二弦1品
+  let note = region.data.note;
+  chordConfig.position = note[0];
+  let chord = note.slice(2, 13).split(","); // [2,1,4,3,2,X]
+  // 遍历生成数组
+  let chordArr = [];
+  for (let i = 0; i < chord.length; i++) {
+    if (chord[i] === "X" || chord[i] === "x") {
+      chordArr.push([i + 1, "x"]);
+    } else {
+      // 下标0 对应1弦
+      chordArr.push([i + 1, chord[i]]);
+    }
+  }
+  chordConfig.chord = chordArr;
+  // 此处拿到了表单提交后chordConfig，根据这个chordConfig来生成和弦
+  updateChords(chordConfig,chordOptions)
+  // 配置 初始化
+  chordArr=[];
+  chordConfig.position = undefined;
+  chordConfig.chord = [];
+}
