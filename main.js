@@ -107,7 +107,7 @@ wavesurfer.on('seek', function (position) {
   let currentTime = position * wavesurfer.getDuration();
   const video = document.querySelector('.video')
   video.currentTime = currentTime
-  console.log(currentTime)
+
 });
 // 生成和弦
 draw('.chord-container', {
@@ -116,9 +116,14 @@ draw('.chord-container', {
   { width: 200, height: 240, defaultColor: 'black' }
 );
 wavesurfer.on('region-click', function(region, e) {
-  // e.stopPropagation();
+  e.stopPropagation();
   // // Play on click, loop on shift click
   // e.shiftKey ? region.playLoop() : region.play();
   console.log(region,e)
+  const startTime = region.start 
+  const endTime = region.end
+  console.log(`开始时间${startTime} 结束时间${endTime}`)
 });
-console.log(wavesurfer.regions.list)
+wavesurfer.on('region-dblclick',(region, e)=>{
+    region.remove()
+})
