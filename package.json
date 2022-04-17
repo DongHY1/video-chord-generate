@@ -13,8 +13,6 @@
   "dependencies": {
     "@ffmpeg/core": "^0.10.0",
     "@ffmpeg/ffmpeg": "^0.10.1",
-    "canvas2video": "^1.1.4",
-    "canvg": "^4.0.0",
     "svg64": "^1.1.0",
     "vexchords": "^1.2.0",
     "wavesurfer.js": "^6.1.0"
