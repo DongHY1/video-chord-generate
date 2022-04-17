@@ -2,14 +2,19 @@ import "./style.css";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/src/plugin/regions";
 import { draw } from "vexchords";
+import svg64 from "svg64";
 import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
 const dragArea = document.querySelector(".drag-area");
 const left = document.querySelector(".left");
+const leftTop = document.querySelector(".left-top");
+const canvas = document.querySelector(".canvas");
+const ctx = canvas.getContext("2d");
 const dragAreaGenerate = document.querySelector(".drag-area-generate");
 const dragAreaHeader = document.querySelector(".drag-area-header");
 const playAudio = document.querySelector(".play-audio");
 const initChordButton = document.querySelector(".init-chord");
-const ffmpeg = createFFmpeg({ log: false });
+const generateVideo = document.querySelector(".generate-video");
+const ffmpeg = createFFmpeg({ log: true });
 let chordConfig = {
   chord: [
     [2, 3],
@@ -17,12 +22,12 @@ let chordConfig = {
     [4, 3],
     [6, "x"],
   ],
-  position: 5
+  position: 5,
 };
 let chordOptions = {
   width: 200,
   height: 240,
-  defaultColor: "black",
+  defaultColor: "#809BFF",
 };
 // 创建音频波形图
 const wavesurfer = WaveSurfer.create({
@@ -41,10 +46,10 @@ const wavesurfer = WaveSurfer.create({
 
 let file;
 let videoHtml;
-let audioHtml;
 let fileurl;
-let audiourl;
 let isPlaying = false;
+let videoDuration;
+let audioBlob;
 const vaildExtension = ["video/mp4"];
 initChordButton.addEventListener("click", () => {
   updateChords(chordConfig, chordOptions);
@@ -66,10 +71,10 @@ dragArea.addEventListener("drop", (event) => {
     fileReader.readAsDataURL(file);
   }
 });
-// 生成视频和canvas对象
+// 生成视频
 dragAreaGenerate.addEventListener("click", () => {
   if (videoHtml) {
-    left.innerHTML = videoHtml;
+    leftTop.innerHTML = videoHtml;
     transcode();
   }
 });
@@ -80,14 +85,9 @@ const transcode = async () => {
   await ffmpeg.run("-i", name, "guitar.mp3");
   const data = ffmpeg.FS("readFile", "guitar.mp3");
   const blob = new Blob([data.buffer], { type: "audio/mp3" });
-  // 创建音频audio标签
-  // audiourl = URL.createObjectURL(blob)
-  // audioHtml = `<audio controls class="audio"><source src="${audiourl}"/></audio>`
-  // rightDown.innerHTML = audioHtml
-  // wavesurfer.load('./src/assets/guitar.mp3')
-  // wavesurfer.loadBlob(blob);
-  // const videoSource = document.querySelector('.video-source')
-  // const video = document.querySelector('.video')
+  console.log(`data:${data}`);
+  console.log(`bolb:${blob}`);
+  audioBlob = blob;
   wavesurfer.loadBlob(blob);
 };
 playAudio.addEventListener("click", playVideoAudio);
@@ -110,7 +110,7 @@ wavesurfer.on("region-dblclick", (region, e) => {
   region.remove();
 });
 wavesurfer.on("region-click", editAnnotation);
-wavesurfer.on('region-in', showChord);
+wavesurfer.on("region-in", showChord);
 function updateVideoTimeIfSeek(position) {
   let currentTime = position * wavesurfer.getDuration();
   const video = document.querySelector(".video");
@@ -126,19 +126,28 @@ function playVideoAudio() {
     playAudio.innerHTML = "暂停";
     // 播放音频视频
     wavesurfer.play();
-    const video = document.querySelector("video")
-    video.play()
-    // 获取当前播放位置
-    video.addEventListener('timeupdate',()=>{
-      console.log(video.currentTime)
-      
-    })
+    var video = document.querySelector(".video");
+    video.play();
+    videoDuration = video.duration;
+    let cw = video.videoWidth;
+    let ch = video.videoHeight;
+    console.log(cw, ch);
+    canvas.width = cw + 200;
+    canvas.height = ch;
+    video.addEventListener(
+      "play",
+      () => {
+        videoDrawCanvas(video, ctx, cw, ch);
+      },
+      false
+    );
   } else {
     playAudio.innerHTML = "播放";
     wavesurfer.pause();
-    document.querySelector("video").pause();
+    document.querySelector(".video").pause();
   }
 }
+
 function editAnnotation(region) {
   let form = document.forms.edit;
   console.log(form);
@@ -154,15 +163,27 @@ function editAnnotation(region) {
         note: form.elements.note.value,
       },
     });
-    
   };
 }
 function updateChords(chordConfig, chordOptions) {
   const chordContainer = document.querySelector(".chord-container");
   chordContainer.innerHTML = "";
   draw(".chord-container", chordConfig, chordOptions);
+  // 得到SVG元素
+  const svgEl = chordContainer.getElementsByTagName("svg");
+  const base64fromSVG = svg64(svgEl[0]);
+  const imgUpload = new Image();
+  imgUpload.onload = function () {
+    // 绘制和弦到canvas
+    console.log("开始绘制");
+    let video = document.querySelector(".video");
+    let cw = video.videoWidth;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(imgUpload, cw, 0);
+  };
+  imgUpload.src = base64fromSVG;
 }
-function showChord(region){
+function showChord(region) {
   // 通过提交的note 计算chordconfig 和 chordOptions 3(2,1,4,3,2,0) 一弦2品、二弦1品
   let note = region.data.note;
   chordConfig.position = note[0];
@@ -179,9 +200,68 @@ function showChord(region){
   }
   chordConfig.chord = chordArr;
   // 此处拿到了表单提交后chordConfig，根据这个chordConfig来生成和弦
-  updateChords(chordConfig,chordOptions)
+  updateChords(chordConfig, chordOptions);
   // 配置 初始化
-  chordArr=[];
+  chordArr = [];
   chordConfig.position = undefined;
   chordConfig.chord = [];
 }
+function videoDrawCanvas(video, ctx, cw, ch) {
+  ctx.drawImage(video, 0, 0);
+  setTimeout(videoDrawCanvas, 20, video, ctx, cw, ch);
+}
+// 保存视频
+
+const stream = canvas.captureStream();
+const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+const data = [];
+recorder.ondataavailable = function (event) {
+  if (event.data && event.data.size) {
+    data.push(event.data);
+  }
+};
+recorder.onstop = () => {
+  console.log("视频录制完毕，准备与音频数据相结合");
+  // 视频 blob
+  const videoBlob = data[0];
+
+  combineVideoAudio(videoBlob, audioBlob);
+
+};
+generateVideo.addEventListener("click", () => {
+  // 更新视频起始位置
+  updateVideoTimeIfClick(0)
+  const video = document.querySelector('.video')
+  video.play()
+  // 播放视频和音频
+  wavesurfer.stop()
+  wavesurfer.play()
+  
+  
+  recorder.start();
+  setTimeout(() => {
+    recorder.stop();
+  }, videoDuration * 1000);
+});
+const combineVideoAudio = async (videoBlob, audioBlob) => {
+  console.log("开始音视频结合");
+  const dataInputVideo = await fetchFile(videoBlob);
+  const dataInputAudio = await fetchFile(audioBlob);
+  ffmpeg.FS('writeFile', 'video.mp4', dataInputVideo);
+  ffmpeg.FS('writeFile', 'aduio.mp3', dataInputAudio);
+  await ffmpeg.run('-i', 'video.mp4', '-i','aduio.mp3', '-c:v', 'copy', '-c:a', 'mp3', '-strict', 'experimental', '-map', '0:v:0', '-map', '1:a:0', 'output.mkv');
+  const data = ffmpeg.FS('readFile', 'output.mkv');
+  console.log(data);
+  console.log("结束音视频结合");
+  const newBlob = new Blob([data.buffer], { type: "video/mp4" });
+  const href = URL.createObjectURL(newBlob);
+  const a = document.createElement("a");
+  a.setAttribute("href", href);
+  a.setAttribute("style", "display:none");
+  a.download = 'output.mp4';
+  document.body.appendChild(a);
+  a.click();
+  a.parentNode.removeChild(a);
+  URL.revokeObjectURL(href);
+  console.log("下载完毕");
+};

@@ -14,12 +14,36 @@ html,body{
   flex: 1 1 150px;
   height: 100vh;
   background-color: black;
-
+  display: flex;
+  flex-direction: column;
 }
-.video{
+.left-top{
   width: 100%;
-  height: 100%;
+  flex: 1 1 150px;
+  /* background-color: burlywood; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
 }
+.left-down{
+  width: 100%;
+  flex: 1 1 150px;
+  /* background-color: thistle; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 500px;
+}
+
+.video{
+  height: 500px;
+  /* display: none; */
+}
+/* .canvas{
+  width: 100vw;
+  height: 100vh;
+} */
 .right{
   flex: 2 1 150px;
   height: 100vh;
@@ -67,4 +91,9 @@ html,body{
   justify-content: center;
   align-items: center;
   margin-top: -20px;
+}
+.canvas-container{
+  height: 80vh;
+  width: 100vw;
+  /* background-color: black; */
 }

@@ -9,18 +9,24 @@
   <body>
     <div id="app">
       <div class="left">
-         
+        <!-- original video -->
+        <div class="left-top"></div> 
+         <!--canvas with chords -->
+        <!-- <div class="left-down">
+          <canvas class="canvas"></canvas>
+        </div> -->
       </div>
       <div class="right">
         <div class="right-top">
           <div class="drag-area">
             <span class="drag-area-header">上传文件到此处</span>
             <button class="drag-area-generate">生成视频和音频</button>
+            <button class="play-audio">播放</button>
+            <button class="init-chord">和弦初始化</button>
+            <button class="generate-video">生成新视频</button>
          </div>
         </div>
         <div class="right-down">
-          <button class="play-audio">播放</button>
-          <button class="init-chord">和弦初始化</button>
           <form role="form" name="edit" class="edit">
             <div class="form-group">
               <label for="start">开始时间</label>
@@ -41,6 +47,9 @@
           <div class="timeline-mark"></div>
         </div>
       </div>
+    </div>
+    <div class="canvas-container">
+      <canvas class="canvas"></canvas>
     </div>
     <script type="module" src="./main.js"></script>
   </body>
